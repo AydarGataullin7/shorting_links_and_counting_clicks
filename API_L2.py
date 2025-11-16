@@ -3,69 +3,89 @@ import os
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 
-load_dotenv()
-url_for_short = input('Введите ссылку: ')
+
+def is_shorten_link(url, token):
+    try:
+        parsed_url = urlparse(url)
+        if 'vk.cc' not in parsed_url.netloc:
+            return False
+
+        key = parsed_url.path.lstrip('/')
+        stats_url = 'https://api.vk.ru/method/utils.getLinkStats'
+        params = {
+            'access_token': token,
+            'key': key,
+            'interval': 'forever',
+            'v': '5.199'
+        }
+
+        response = requests.get(stats_url, params=params)
+        response.raise_for_status()
+        stats_response = response.json()
+
+        return 'error' not in stats_response
+
+    except requests.exceptions.HTTPError:
+        return False
 
 
-def is_shorten_link(url):
-    parsed_inputed_url = urlparse(url)
-    return 'vk.cc' in parsed_inputed_url.netloc
-
-
-def shorten_link(url_to_shorten):
-    url_doing_short = 'https://api.vk.ru/method/utils.getShortLink'
+def shorten_link(url_to_shorten, token):
+    shorting_url = 'https://api.vk.ru/method/utils.getShortLink'
     params = {
-        'access_token': os.getenv('token'),
+        'access_token': token,
         'url': url_to_shorten,
         'v': '5.199'
     }
 
-    response = requests.get(url_doing_short, params=params)
+    response = requests.get(shorting_url, params=params)
     response.raise_for_status()
-    response_data = response.json()
+    api_response = response.json()
 
-    if 'error' in response_data:
-        error_msg = response_data['error'].get(
+    if 'error' in api_response:
+        error_msg = api_response['error'].get(
             'error_msg')
         raise requests.exceptions.HTTPError(
             "Ошибка VK API: {0}".format(error_msg))
 
-    short_url = response_data['response']['short_url']
+    short_url = api_response['response']['short_url']
     return short_url
 
 
-def count_clicks(short_url):
-    url_cuonting_clicks = 'https://api.vk.ru/method/utils.getLinkStats'
+def count_clicks(short_url, token):
+    cuonting_url = 'https://api.vk.ru/method/utils.getLinkStats'
     parsed_short_url = urlparse(short_url)
     key = parsed_short_url.path.lstrip('/')
     params = {
-        'access_token': os.getenv('token'),
+        'access_token': token,
         'key': key,
         'interval': 'forever',
         'v': '5.199'
     }
 
-    response = requests.get(url_cuonting_clicks, params=params)
+    response = requests.get(cuonting_url, params=params)
     response.raise_for_status()
-    response_info = response.json()
+    stats_response = response.json()
 
-    if 'error' in response_info:
-        error_msg = response_info['error'].get(
+    if 'error' in stats_response:
+        error_msg = stats_response['error'].get(
             'error_msg')
         raise requests.exceptions.HTTPError(
             "Ошибка VK API: {0}".format(error_msg))
 
-    counted_clicks = response_info['response']['stats'][0]['views']
+    counted_clicks = stats_response['response']['stats'][0]['views']
     return counted_clicks
 
 
 def main():
+    load_dotenv()
+    token = os.environ['VK_API_TOKEN']
+    url_for_short = input('Введите ссылку: ')
     try:
-        if is_shorten_link(url_for_short):
-            views = count_clicks(url_for_short)
+        if is_shorten_link(url_for_short, token):
+            views = count_clicks(url_for_short, token)
             print('Количество переходов по ссылке: ', views)
         else:
-            short_link = shorten_link(url_for_short)
+            short_link = shorten_link(url_for_short, token)
             print('Сокращенная ссылка: ', short_link)
     except requests.exceptions.HTTPError:
         print("Проверьте правильность введенной ссылки и настройки доступа.")
